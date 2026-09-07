@@ -44,14 +44,16 @@ app_license = "mit"
 
 permission_query_conditions = { 
     "Outward Documents": "po_wo_pr.irs.api.outward_documents_permission",
-    "Inward Documents": "po_wo_pr.irs.api.inward_documents_permission"
+    "Inward Documents": ["po_wo_pr.irs.api.inward_documents_permission", "po_wo_pr.irs.doctype.inward_document.inward_document.get_permission_query_conditions"],
+    "Inward Outward Transit": "po_wo_pr.irs.api.get_transit_permission_conditions",
 }
-
 
 doctype_list_js = {
     "Inward Document": "public/js/inward_list.js",
     "Attendance": "public/js/attendance_list.js",
-    "Purchase Order": "public/js/purchase_order_list.js"
+    "Purchase Order": "public/js/purchase_order_list.js",
+    "Outward Documents": "public/js/outward_list.js",
+    "Inward Outward Transit": "public/js/inward_outward_transit_list.js"
 }
 
 # include js in doctype views
