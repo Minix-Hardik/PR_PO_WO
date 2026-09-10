@@ -1,4 +1,8 @@
+from frappe.desk.form.linked_with import get_linked_docs
+from frappe import _
 import frappe
+import re
+
 @frappe.whitelist()
 def bulk_inward_to_outward(docnames,extra_data=None):
     docnames = frappe.parse_json(docnames)
@@ -156,7 +160,6 @@ def create_transit_records(docs, target_branch):
 
 
 import frappe
-from frappe import _
 
 @frappe.whitelist()
 def receive_transit_to_inward(transit_names):
@@ -217,3 +220,87 @@ def receive_transit_to_inward(transit_names):
         created_inwards.append(inward_doc.name)
 
     return created_inwards
+
+@frappe.whitelist()
+def force_bulk_delete_pos(po_names):
+    if isinstance(po_names, str):
+        po_names = frappe.parse_json(po_names)
+
+    deleted = []
+    failed = []
+
+    for name in po_names:
+        # Sanitize savepoint name to alphanumeric and underscores only
+        safe_name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
+        savepoint_identifier = f"sp_{safe_name}"
+
+        # Create savepoint safely
+        frappe.db.savepoint(savepoint_identifier)
+        
+        try:
+            if not frappe.db.exists("Purchase Order", name):
+                continue
+
+            # 1. Clear self-referential amendment links
+            frappe.db.sql("""
+                UPDATE `tabPurchase Order` 
+                SET amended_from = NULL 
+                WHERE name = %s OR amended_from = %s
+            """, (name, name))
+
+            # 2. Delete linked documents recursively
+            delete_all_linked_documents("Purchase Order", name)
+
+            # 3. Cancel and delete original PO
+            doc = frappe.get_doc("Purchase Order", name)
+            if doc.docstatus == 1:
+                doc.cancel()
+
+            frappe.delete_doc("Purchase Order", name, force=True)
+            deleted.append(name)
+
+        except Exception as e:
+            # Pass the matching sanitized savepoint name on rollback
+            frappe.db.rollback(save_point=savepoint_identifier)
+            failed.append({"name": name, "error": str(e)})
+
+    frappe.db.commit()
+    return {"deleted": deleted, "failed": failed}
+
+
+def delete_all_linked_documents(doctype, docname):
+    linked_docs = get_linked_docs(doctype, docname)
+
+    for linked_dt, records in linked_docs.items():
+        if linked_dt == doctype:
+            continue
+
+        for rec in records:
+            rec_name = rec.get("name")
+            if not rec_name or not frappe.db.exists(linked_dt, rec_name):
+                continue
+
+            try:
+                # Clear amended_from link on child documents if present
+                if frappe.get_meta(linked_dt).has_field("amended_from"):
+                    frappe.db.sql(f"""
+                        UPDATE `tab{linked_dt}` 
+                        SET amended_from = NULL 
+                        WHERE name = %s OR amended_from = %s
+                    """, (rec_name, rec_name))
+
+                # Recursively delete deeper dependencies
+                delete_all_linked_documents(linked_dt, rec_name)
+
+                linked_doc = frappe.get_doc(linked_dt, rec_name)
+                if linked_doc.docstatus == 1:
+                    linked_doc.cancel()
+
+                frappe.delete_doc(linked_dt, rec_name, force=True)
+
+            except Exception as e:
+                frappe.log_error(
+                    title=f"Failed cascading delete for {linked_dt} {rec_name}",
+                    message=frappe.get_traceback()
+                )
+                raise e
