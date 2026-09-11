@@ -16,9 +16,9 @@ frappe.ui.form.on("Supplier Quotation", {
             fetch_contact_details(frm);
         }
     },
-    custom_term_selection(frm) {
-        set_terms_from_selection(frm);
-    },
+    // custom_term_selection(frm) {
+    //     set_terms_from_selection(frm);
+    // },
     tc_name(frm) {
         // Term Selection wins over the single Terms Template
         if (get_selected_terms(frm).length) {
@@ -35,7 +35,7 @@ frappe.ui.form.on("Supplier Quotation", {
                     grand_total: frm.doc.rounded_total || frm.doc.grand_total,
                     base_grand_total: frm.doc.base_rounded_total || frm.doc.base_grand_total,
                 },
-                callback: function(r) {
+                callback: function (r) {
                     if (r.message && !r.exc) {
                         frm.set_value("custom_payment_schedule", r.message);
                     }
@@ -294,10 +294,10 @@ function fetch_contact_details(frm) {
             fields: ["contact_person"],
             limit_page_length: 0
         },
-        callback: function(r) {
+        callback: function (r) {
             if (r.message && r.message.length) {
                 frm.clear_table("custom_contact_personss");
-                r.message.forEach(function(row) {
+                r.message.forEach(function (row) {
                     let child = frm.add_child("custom_contact_personss");
                     child.contact_person = row.contact_person;
                 });
