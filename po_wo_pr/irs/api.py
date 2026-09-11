@@ -351,3 +351,31 @@ def force_bulk_delete_sqs(sq_names):
 
     frappe.db.commit()
     return {"deleted": deleted, "failed": failed}
+
+@frappe.whitelist()
+def update_shift_locations(parent_doc, locations):
+    if isinstance(locations, str):
+        locations = frappe.parse_json(locations)
+
+    doc = frappe.get_doc("Shift Assignment", parent_doc)
+
+    # Clear existing child records in memory
+    doc.set("custom_multiple_shift_location", [])
+
+    # Re-build child table entries from dialog payload
+    for idx, loc in enumerate(locations, start=1):
+        doc.append("custom_multiple_shift_location", {
+            "doctype": "Multiple Shift Locations",
+            "location": loc.get("location"),
+            "is_active": loc.get("is_active", 0),
+            "docstatus": 1,
+            "idx": idx
+        })
+
+    # Force save on submitted document
+    doc.flags.ignore_validate_update_after_submit = True
+    doc.flags.ignore_permissions = True
+    doc.save(ignore_permissions=True)
+
+    frappe.db.commit()
+    return True
