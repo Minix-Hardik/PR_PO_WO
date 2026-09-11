@@ -304,3 +304,50 @@ def delete_all_linked_documents(doctype, docname):
                     message=frappe.get_traceback()
                 )
                 raise e
+
+
+@frappe.whitelist()
+def force_bulk_delete_sqs(sq_names):
+    if isinstance(sq_names, str):
+        sq_names = frappe.parse_json(sq_names)
+
+    deleted = []
+    failed = []
+
+    for name in sq_names:
+        # Sanitize savepoint name to alphanumeric and underscores only
+        safe_name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
+        savepoint_identifier = f"sp_{safe_name}"
+
+        # Create savepoint safely
+        frappe.db.savepoint(savepoint_identifier)
+        
+        try:
+            if not frappe.db.exists("Supplier Quotation", name):
+                continue
+
+            # 1. Clear self-referential amendment links
+            frappe.db.sql("""
+                UPDATE `tabSupplier Quotation` 
+                SET amended_from = NULL 
+                WHERE name = %s OR amended_from = %s
+            """, (name, name))
+
+            # 2. Delete linked documents recursively
+            delete_all_linked_documents("Supplier Quotation", name)
+
+            # 3. Cancel and delete original Supplier Quotation
+            doc = frappe.get_doc("Supplier Quotation", name)
+            if doc.docstatus == 1:
+                doc.cancel()
+
+            frappe.delete_doc("Supplier Quotation", name, force=True)
+            deleted.append(name)
+
+        except Exception as e:
+            # Pass the matching sanitized savepoint name on rollback
+            frappe.db.rollback(save_point=savepoint_identifier)
+            failed.append({"name": name, "error": str(e)})
+
+    frappe.db.commit()
+    return {"deleted": deleted, "failed": failed}

@@ -4,6 +4,21 @@ frappe.ui.form.on('Employee Checkin', {
     },
     refresh: function (frm) {
         lock_fields(frm);
+        setTimeout(() => {
+            let $btn = frm.get_field('custom_fetch_geolocation')?.$input
+                || frm.fields_dict['custom_fetch_geolocation']?.$wrapper.find('button')
+                || $(frm.wrapper).find('button:contains("Fetch Geolocation")');
+
+            if ($btn && $btn.length) {
+                // Apply light blue background and text color
+                $btn.css({
+                    'background-color': '#87CEEB',
+                    'border-color': '#70C0E8',
+                    'color': '#000000',
+                    'font-weight': '600'
+                });
+            }
+        }, 100);
     },
     validate(frm) {
         if (!frm.doc.latitude || !frm.doc.longitude) {

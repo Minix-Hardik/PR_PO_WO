@@ -52,6 +52,7 @@ doctype_list_js = {
     "Inward Document": "public/js/inward_list.js",
     "Attendance": "public/js/attendance_list.js",
     "Purchase Order": "public/js/purchase_order_list.js",
+    "Supplier Quotation": "public/js/supplier_quotation_list.js",
     "Outward Documents": "public/js/outward_list.js",
     "Inward Outward Transit": "public/js/inward_outward_transit_list.js"
 }
